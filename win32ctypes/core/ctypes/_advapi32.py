@@ -31,6 +31,7 @@ class CREDENTIAL(Structure):
         ("TargetAlias", c_wchar_p),
         ("UserName", c_wchar_p)]
 PCREDENTIAL = POINTER(CREDENTIAL)
+PPCREDENTIAL = POINTER(PCREDENTIAL)
 
 advapi = ctypes.windll.advapi32
 
@@ -55,4 +56,10 @@ _CredDelete = function_factory(
     BOOL,
     check_zero_factory("CredDelete"))
 
-_CredFree = function_factory(advapi.CredFree, [PCREDENTIAL])
+_CredFree = function_factory(advapi.CredFree, [ctypes.wintypes.LPVOID])
+
+_CredEnumerate = function_factory(
+    advapi.CredEnumerateW,
+    [LPCWSTR, DWORD, POINTER(DWORD), POINTER(PPCREDENTIAL)],
+    BOOL,
+    check_zero_factory("CredEnumerate"))

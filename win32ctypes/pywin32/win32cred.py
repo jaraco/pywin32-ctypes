@@ -97,18 +97,21 @@ def CredRead(TargetName, Type):
     with pywin32error():
         _advapi32._CredRead(TargetName, Type, flag, ctypes.byref(c_pcreds))
     try:
-        c_creds = c_pcreds.contents
-        credential = {}
-        for key in _advapi32.SUPPORTED_CREDKEYS:
-            if key != 'CredentialBlob':
-                credential[key] = getattr(c_creds, key)
-            else:
-                blob = _common._PyBytes_FromStringAndSize(
-                    c_creds.CredentialBlob, c_creds.CredentialBlobSize)
-                credential['CredentialBlob'] = blob
-        return credential
+        return _cred_as_dict(c_pcreds.contents)
     finally:
         _advapi32._CredFree(c_pcreds)
+
+
+def _cred_as_dict(c_creds):
+    credential = {}
+    for key in _advapi32.SUPPORTED_CREDKEYS:
+        if key != 'CredentialBlob':
+            credential[key] = getattr(c_creds, key)
+        else:
+            blob = _common._PyBytes_FromStringAndSize(
+                c_creds.CredentialBlob, c_creds.CredentialBlobSize)
+            credential['CredentialBlob'] = blob
+    return credential
 
 
 def CredDelete(TargetName, Type):
@@ -138,3 +141,25 @@ def _make_blob(password):
     else:
         code_page = _kernel32._GetACP()
         return unicode(password, encoding=str(code_page), errors='strict')
+
+
+def CredEnumerate(Filter=None, Flags=0):
+    """
+    Flags specifies a name prefix followed by an asterix, e.g. "FRED*"
+    """
+    c_ppcreds = _advapi32.PPCREDENTIAL()
+    c_count = ctypes.wintypes.DWORD()
+
+    with pywin32error():
+        _advapi32._CredEnumerate(Filter, Flags, ctypes.byref(c_count),
+            ctypes.byref(c_ppcreds))
+
+    try:
+        creds = [
+            _cred_as_dict(c_ppcreds[index].contents)
+            for index in range(c_count.value)
+        ]
+    finally:
+        _advapi32._CredFree(c_ppcreds)
+    is_generic = lambda cred: cred['Type'] == CRED_TYPE_GENERIC
+    return list(filter(is_generic, creds))
